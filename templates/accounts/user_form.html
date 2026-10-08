@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Edit user{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-6">
+  <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'user_list' %}">Users</a></li><li class="breadcrumb-item active">{{ object.username }}</li></ol></nav>
+  <h1 class="h3 mb-3">Edit {{ object.username }}</h1>
+  <div class="card"><div class="card-body p-4">
+    <dl class="row mb-4">
+      <dt class="col-sm-4 text-body-secondary fw-normal">Name</dt><dd class="col-sm-8">{{ object.get_full_name|default:"—" }}</dd>
+      <dt class="col-sm-4 text-body-secondary fw-normal">Email</dt><dd class="col-sm-8 mb-0">{{ object.email }}</dd>
+    </dl>
+    <form method="post" novalidate>{% csrf_token %}
+      {{ form|crispy }}
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-dark">Save changes</button>
+        <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}

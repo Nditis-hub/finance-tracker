@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Departments{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Departments</h1>
+  <a href="{% url 'department_create' %}" class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i>Add department</a>
+</div>
+<p class="text-body-secondary small">Each department gets its own budget, and income and expenses are tracked against it. A department that already has records can be renamed but not deleted.</p>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Name</th><th class="text-end">Action</th></tr>
+      </thead>
+      <tbody>
+      {% for d in departments %}
+        <tr>
+          <td class="fw-semibold">{{ d.name }}</td>
+          <td class="text-nowrap text-end">
+            <a href="{% url 'department_edit' d.pk %}" class="btn btn-sm btn-outline-secondary" title="Rename" aria-label="Rename department"><i class="bi bi-pencil"></i></a>
+            <form method="post" action="{% url 'department_delete' d.pk %}" class="d-inline" onsubmit="return confirm('Delete this department? This cannot be undone.');">{% csrf_token %}
+              <button class="btn btn-sm btn-outline-secondary" title="Delete" aria-label="Delete department"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="2" class="text-center text-body-secondary py-4">No departments yet. <a href="{% url 'department_create' %}">Add the first one.</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load money %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Welcome back, {{ user.first_name|default:user.username }}</h1>
+  <div class="text-body-secondary">Here is how the hotel is doing this month.</div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body d-flex align-items-center gap-3">
+      <div class="kpi-icon bg-success-subtle text-success"><i class="bi bi-arrow-down-left-circle"></i></div>
+      <div><div class="text-body-secondary small">Income this month</div><div class="kpi-value text-success">{{ income|money }}</div></div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body d-flex align-items-center gap-3">
+      <div class="kpi-icon bg-danger-subtle text-danger"><i class="bi bi-arrow-up-right-circle"></i></div>
+      <div><div class="text-body-secondary small">Expenses this month</div><div class="kpi-value text-danger">{{ expense|money }}</div></div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body d-flex align-items-center gap-3">
+      <div class="kpi-icon bg-primary-subtle text-primary"><i class="bi bi-wallet2"></i></div>
+      <div><div class="text-body-secondary small">Net this month</div><div class="kpi-value">{{ net|money }}</div></div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100"><div class="card-body d-flex align-items-center gap-3">
+      <div class="kpi-icon bg-warning-subtle text-warning-emphasis"><i class="bi bi-calendar-check"></i></div>
+      <div>
+        <div class="text-body-secondary small">Active bookings</div>
+        <div class="kpi-value">{{ active_bookings }}</div>
+        {% if user.can_manage_finance %}<div class="small mt-1"><a href="{% url 'transaction_list' %}?status=pending">{{ pending_approvals }} transaction{{ pending_approvals|pluralize }} awaiting approval</a></div>{% endif %}
+      </div>
+    </div></div>
+  </div>
+</div>
+
+{% if user.can_manage_finance %}
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6 mb-3">Income vs expenses, last 6 months</h2>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6 mb-3">Budget used (%)</h2>
+      <div class="chart-box"><canvas id="budgetChart"></canvas></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-graph-up-arrow me-2"></i>Spending forecast</span>
+    <a href="{% url 'budget_list' %}" class="small">All budgets</a>
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for item in forecasts %}
+      {% with f=item.forecast b=item.budget %}
+      <li class="list-group-item px-4 py-3 d-flex justify-content-between align-items-center gap-3">
+        <div>
+          <div class="fw-semibold">{{ b.department }}</div>
+          <div class="small text-body-secondary">
+            {% if f.status == 'over' %}Already over budget by {{ f.over_by|money }}.
+            {% elif f.status == 'run_out' %}On pace to run out around {{ f.exhaust_date|date:"j M" }}, ending the period about {{ f.projected_remaining|money }} over (projected spend {{ f.projected_total|money }}).
+            {% elif f.status == 'on_track' %}On pace to finish with about {{ f.projected_remaining|money }} left ({{ f.daily_rate|money }} per day so far).
+            {% elif f.status == 'no_spending' %}No spending recorded yet in this period.
+            {% elif f.status == 'not_started' %}This budget period has not started yet.
+            {% else %}This budget period has ended.{% endif %}
+            {% if f.low_confidence and f.status == 'run_out' or f.low_confidence and f.status == 'on_track' %}<span class="fst-italic">Early estimate: only {{ f.elapsed_days }} day{{ f.elapsed_days|pluralize }} of data.</span>{% endif %}
+          </div>
+        </div>
+        <div class="text-nowrap">
+          {% if f.status == 'over' %}<span class="badge text-bg-danger">Over budget</span>
+          {% elif f.status == 'run_out' %}<span class="badge text-bg-warning">At risk</span>
+          {% elif f.status == 'on_track' %}<span class="badge text-bg-success">On track</span>
+          {% else %}<span class="badge text-bg-secondary">No forecast</span>{% endif %}
+        </div>
+      </li>
+      {% endwith %}
+    {% empty %}
+      <li class="list-group-item text-body-secondary px-4 py-3">Set a budget for a department to see its spending forecast. <a href="{% url 'budget_create' %}">Set a budget</a></li>
+    {% endfor %}
+  </ul>
+  <div class="card-footer bg-transparent small text-body-secondary px-4">Forecasts assume spending continues at the average daily pace so far. Treat them as a guide.</div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-bell me-2"></i>Budget alerts</span>
+    {% if user.can_manage_finance %}<a href="{% url 'budget_list' %}" class="small">All budgets</a>{% endif %}
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for b in budget_alerts %}
+      <li class="list-group-item d-flex justify-content-between align-items-center px-4 py-3">
+        <span><strong>{{ b.department }}</strong>: {{ b.spent|money }} of {{ b.amount|money }} spent</span>
+        {% if b.alert_level == 'over' %}<span class="badge text-bg-danger">Over budget</span>
+        {% else %}<span class="badge text-bg-warning">Nearing limit</span>{% endif %}
+      </li>
+    {% empty %}
+      <li class="list-group-item text-body-secondary px-4 py-3"><i class="bi bi-check-circle text-success me-2"></i>All departments are within budget.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% if user.can_manage_finance %}{{ chart_data|json_script:"dash-data" }}{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if user.can_manage_finance %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const d = JSON.parse(document.getElementById('dash-data').textContent);
+
+  // Draw a chart, or a short message when there is nothing to plot yet.
+  function draw(canvasId, hasData, config) {
+    const canvas = document.getElementById(canvasId);
+    if (!hasData) {
+      canvas.parentElement.innerHTML = '<p class="text-body-secondary mb-0 py-4 text-center">No data yet.</p>';
+      return;
+    }
+    config.options = Object.assign({ responsive: true, maintainAspectRatio: true }, config.options || {});
+    new Chart(canvas, config);
+  }
+
+  draw('trendChart', d.months.length > 0, {
+    type: 'line',
+    data: { labels: d.months, datasets: [
+      { label: 'Income', data: d.income, borderColor: '#198754', backgroundColor: '#198754', tension: 0.25 },
+      { label: 'Expenses', data: d.expense, borderColor: '#dc3545', backgroundColor: '#dc3545', tension: 0.25 }
+    ]},
+    options: { aspectRatio: 2 }
+  });
+
+  // Bars turn amber from 80% and red from 100% of the budget used.
+  const barColours = d.budget_values.map(v => v >= 100 ? '#dc3545' : (v >= 80 ? '#ffc107' : '#198754'));
+  draw('budgetChart', d.budget_labels.length > 0, {
+    type: 'bar',
+    data: { labels: d.budget_labels, datasets: [{ label: '% of budget used', data: d.budget_values, backgroundColor: barColours }] },
+    options: { indexAxis: 'y', aspectRatio: 1.2, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, suggestedMax: 100 } } }
+  });
+</script>
+{% endif %}
+{% endblock %}

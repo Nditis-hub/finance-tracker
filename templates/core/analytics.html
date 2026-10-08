@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Analytics</h1>
+  <button type="button" class="btn btn-outline-dark print-hide" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print / save as PDF</button>
+</div>
+<p class="text-body-secondary small">Charts count approved transactions only.</p>
+
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card"><div class="card-body">
+      <h2 class="h6">Income vs expenses by month</h2>
+      <div class="chart-box" data-chart="monthly"><canvas id="monthlyChart"></canvas></div>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6">Revenue by department</h2>
+      <div class="chart-box" data-chart="revenue"><canvas id="revenueChart"></canvas></div>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6">Expenses by category</h2>
+      <div class="chart-box" data-chart="categories"><canvas id="categoryChart"></canvas></div>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6">Top suppliers by spend</h2>
+      <div class="chart-box" data-chart="suppliers"><canvas id="supplierChart"></canvas></div>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100"><div class="card-body">
+      <h2 class="h6">Booking value by status</h2>
+      <div class="chart-box" data-chart="bookings"><canvas id="bookingChart"></canvas></div>
+    </div></div>
+  </div>
+</div>
+{{ chart_data|json_script:"chart-data" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const data = JSON.parse(document.getElementById('chart-data').textContent);
+  const palette = ['#198754', '#dc3545', '#0d6efd', '#ffc107', '#6f42c1', '#20c997', '#fd7e14', '#6c757d'];
+
+  // Draw a chart, or show a short message when there is nothing to plot.
+  function draw(canvasId, hasData, config) {
+    const canvas = document.getElementById(canvasId);
+    if (!hasData) {
+      canvas.parentElement.innerHTML = '<p class="text-body-secondary mb-0 py-4 text-center">No data yet.</p>';
+      return;
+    }
+    config.options = Object.assign({ responsive: true, maintainAspectRatio: true }, config.options || {});
+    new Chart(canvas, config);
+  }
+
+  draw('monthlyChart', data.months.length > 0, {
+    type: 'line',
+    data: { labels: data.months, datasets: [
+      { label: 'Income', data: data.income, borderColor: '#198754', backgroundColor: '#198754', tension: 0.2 },
+      { label: 'Expenses', data: data.expense, borderColor: '#dc3545', backgroundColor: '#dc3545', tension: 0.2 }
+    ]},
+    options: { aspectRatio: 3 }
+  });
+
+  draw('revenueChart', data.dept_labels.length > 0, {
+    type: 'pie',
+    data: { labels: data.dept_labels, datasets: [{ data: data.dept_values, backgroundColor: palette }] }
+  });
+
+  draw('categoryChart', data.category_labels.length > 0, {
+    type: 'bar',
+    data: { labels: data.category_labels, datasets: [{ label: 'Expenses', data: data.category_values, backgroundColor: '#dc3545' }] },
+    options: { plugins: { legend: { display: false } } }
+  });
+
+  draw('supplierChart', data.supplier_labels.length > 0, {
+    type: 'bar',
+    data: { labels: data.supplier_labels, datasets: [{ label: 'Total paid', data: data.supplier_values, backgroundColor: '#0d6efd' }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+  });
+
+  draw('bookingChart', data.booking_labels.length > 0, {
+    type: 'doughnut',
+    data: { labels: data.booking_labels, datasets: [{ data: data.booking_values, backgroundColor: palette }] }
+  });
+</script>
+{% endblock %}

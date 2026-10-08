@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<h1 class="h3 mb-1">Users</h1>
+<p class="text-body-secondary small">New people sign up as Staff. Change their role here when they need more access.</p>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ u.username }}</div>
+            <div class="small text-body-secondary">{{ u.get_full_name|default:"" }}</div>
+          </td>
+          <td>{{ u.email }}</td>
+          <td>
+            {% if u.role == 'admin' %}<span class="badge text-bg-dark">Admin</span>
+            {% elif u.role == 'finance_manager' %}<span class="badge text-bg-primary">Finance Manager</span>
+            {% else %}<span class="badge text-bg-secondary">Staff</span>{% endif %}
+          </td>
+          <td>{% if u.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-warning">Deactivated</span>{% endif %}</td>
+          <td class="text-nowrap">{{ u.last_login|date:"Y-m-d H:i"|default:"Never" }}</td>
+          <td class="text-end"><a href="{% url 'user_edit' u.pk %}" class="btn btn-sm btn-outline-dark">Edit</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if is_paginated %}
+<nav class="mt-3" aria-label="User pages">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>{% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}

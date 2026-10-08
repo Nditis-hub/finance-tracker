@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load money %}
+{% block title %}Budgets{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Budgets</h1>
+  <a href="{% url 'budget_create' %}" class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i>Set budget</a>
+</div>
+<p class="text-body-secondary small">Spending counts approved expenses inside each budget's period. Setting a new budget for a department keeps the old one as history.</p>
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Department</th><th>Period</th><th class="text-end">Budget</th><th class="text-end">Spent</th>
+          <th class="text-end">Remaining</th><th style="min-width: 160px;">Used</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for b in budgets %}
+        <tr>
+          <td class="fw-semibold">{{ b.department }}</td>
+          <td class="text-nowrap">{{ b.period_start|date:"Y-m-d" }} to {{ b.period_end|date:"Y-m-d" }}</td>
+          <td class="text-end">{{ b.amount|money }}</td>
+          <td class="text-end">{{ b.spent|money }}</td>
+          <td class="text-end {% if b.remaining < 0 %}text-danger{% endif %}">{{ b.remaining|money }}</td>
+          <td>
+            <div class="progress" role="progressbar" aria-label="Budget used" aria-valuenow="{{ b.percent_used_capped }}" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar {% if b.alert_level == 'over' %}bg-danger{% elif b.alert_level == 'near' %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ b.percent_used_capped }}%">{{ b.percent_used|floatformat:0 }}%</div>
+            </div>
+          </td>
+          <td>
+            {% if b.is_expired %}<span class="badge text-bg-secondary">Period ended</span>
+            {% elif b.alert_level == 'over' %}<span class="badge text-bg-danger">Over budget</span>
+            {% elif b.alert_level == 'near' %}<span class="badge text-bg-warning">Nearing limit</span>
+            {% else %}<span class="badge text-bg-success">On track</span>{% endif %}
+          </td>
+          <td class="text-nowrap text-end">
+            <a href="{% url 'budget_create' %}?department={{ b.department_id }}" class="btn btn-sm btn-outline-dark">Revise</a>
+            <a href="{% url 'budget_history' b.department_id %}" class="btn btn-sm btn-outline-secondary">History</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="text-center text-body-secondary py-4">No budgets yet. <a href="{% url 'budget_create' %}">Set the first one.</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if departments_without_budget %}
+<div class="card">
+  <div class="card-header">Departments without a current budget</div>
+  <ul class="list-group list-group-flush">
+    {% for d in departments_without_budget %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ d.name }}
+        <a href="{% url 'budget_create' %}?department={{ d.pk }}" class="btn btn-sm btn-outline-dark">Set budget</a>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+<div class="card auth-card"><div class="card-body p-4">
+  <h1 class="h4 mb-1">Create an account</h1>
+  <p class="text-body-secondary small">New accounts start as Staff. An admin can change your role.</p>
+  <form method="post">{% csrf_token %}
+    {{ form|crispy }}
+    <button type="submit" class="btn btn-dark w-100 mt-2">Create account</button>
+  </form>
+  <hr>
+  <p class="mb-0 small">Already registered? <a href="{% url 'login' %}">Log in</a></p>
+</div></div>
+{% endblock %}
