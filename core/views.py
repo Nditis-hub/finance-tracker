@@ -1,9 +1,11 @@
+import csv
 from datetime import date
 from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError, Sum
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
@@ -16,6 +18,7 @@ from .analytics import get_chart_data
 from .forecast import forecast_for
 from .forms import CategoryForm, DepartmentForm
 from .models import Category, Department
+from .reports import available_years, csv_safe, department_pnl
 
 
 def _sum(qs):
@@ -152,3 +155,55 @@ class DepartmentDeleteView(FinanceManagerRequiredMixin, View):
                 f'"{department.name}" has transactions, bookings or budgets, so it cannot be deleted. You can rename it instead.',
             )
         return redirect("department_list")
+
+        
+
+# ---------- Profit and loss by department (admins and finance managers only) ----------
+
+def _selected_year(request):
+    """The year from ?year=, falling back to the current year when it is missing or not sensible."""
+    try:
+        year = int(request.GET.get("year", ""))
+    except ValueError:
+        return date.today().year
+    return year if 2000 <= year <= 2100 else date.today().year
+
+
+class ProfitLossView(FinanceManagerRequiredMixin, TemplateView):
+    template_name = "core/profit_loss.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        year = _selected_year(self.request)
+        report = department_pnl(year)
+        ctx["report"] = report
+        ctx["years"] = available_years()
+        ctx["year"] = year
+        ctx["chart_data"] = {
+            "labels": [d["name"] for d in report["departments"]],
+            "revenue": [float(d["revenue"]) for d in report["departments"]],
+            "expenses": [float(d["expenses"]) for d in report["departments"]],
+        }
+        return ctx
+
+
+class ProfitLossExportView(FinanceManagerRequiredMixin, View):
+    """Download the profit and loss report for a year as a spreadsheet file."""
+
+    http_method_names = ["get"]
+
+    def get(self, request):
+        year = _selected_year(request)
+        report = department_pnl(year)
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="profit-and-loss-{year}.csv"'
+        response.write("\ufeff")  # lets Excel read the file as UTF-8
+        writer = csv.writer(response)
+        writer.writerow(["Department", "Revenue", "Expenses", "Profit", "Margin %"]
+                        + [f"{m} profit" for m in report["month_labels"]])
+        for d in report["departments"] + [report["totals"]]:
+            writer.writerow([
+                csv_safe(d["name"]), d["revenue"], d["expenses"], d["profit"],
+                "" if d["margin"] is None else d["margin"], *d["months"],
+            ])
+        return response

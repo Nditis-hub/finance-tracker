@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load money %}
+{% block title %}Profit &amp; loss{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Profit &amp; loss by department</h1>
+    <div class="text-body-secondary small">Approved transactions only, for {{ year }}. Profit is revenue minus expenses.</div>
+  </div>
+  <div class="d-flex gap-2 print-hide">
+    <form method="get" class="d-flex gap-2">
+      <select name="year" class="form-select" aria-label="Year" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </form>
+    <a href="{% url 'profit_loss_export' %}?year={{ year }}" class="btn btn-outline-dark"><i class="bi bi-download me-1"></i>Export CSV</a>
+    <button type="button" class="btn btn-outline-dark" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Department</th><th class="text-end">Revenue</th><th class="text-end">Expenses</th><th class="text-end">Profit</th><th class="text-end">Margin</th></tr>
+      </thead>
+      <tbody>
+        {% for d in report.departments %}
+        <tr>
+          <td class="fw-semibold">{{ d.name }}</td>
+          <td class="text-end">{{ d.revenue|money }}</td>
+          <td class="text-end">{{ d.expenses|money }}</td>
+          <td class="text-end fw-semibold {% if d.profit < 0 %}text-danger{% elif d.profit > 0 %}text-success{% endif %}">{{ d.profit|money }}</td>
+          <td class="text-end">{% if d.margin is None %}<span class="text-body-secondary">—</span>{% else %}{{ d.margin }}%{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-body-secondary py-4">No departments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-light">
+        <tr class="fw-bold">
+          <td>Total</td>
+          <td class="text-end">{{ report.totals.revenue|money }}</td>
+          <td class="text-end">{{ report.totals.expenses|money }}</td>
+          <td class="text-end {% if report.totals.profit < 0 %}text-danger{% elif report.totals.profit > 0 %}text-success{% endif %}">{{ report.totals.profit|money }}</td>
+          <td class="text-end">{% if report.totals.margin is None %}<span class="text-body-secondary">—</span>{% else %}{{ report.totals.margin }}%{% endif %}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h2 class="h6 mb-3">Revenue vs expenses by department</h2>
+    <div class="chart-box"><canvas id="pnlChart"></canvas></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Profit by month</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Department</th>
+          {% for m in report.month_labels %}<th class="text-end">{{ m }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in report.departments %}
+        <tr>
+          <td class="fw-semibold text-nowrap">{{ d.name }}</td>
+          {% for p in d.months %}<td class="text-end text-nowrap {% if p < 0 %}text-danger{% elif p == 0 %}text-body-secondary{% endif %}">{{ p|floatformat:"0g" }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-light">
+        <tr class="fw-bold">
+          <td>Total</td>
+          {% for p in report.totals.months %}<td class="text-end text-nowrap {% if p < 0 %}text-danger{% elif p == 0 %}text-body-secondary{% endif %}">{{ p|floatformat:"0g" }}</td>{% endfor %}
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <div class="card-footer bg-transparent small text-body-secondary px-4">Monthly figures are rounded to whole units. Negative figures (in red) are losses.</div>
+</div>
+{{ chart_data|json_script:"pnl-data" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const pnl = JSON.parse(document.getElementById('pnl-data').textContent);
+  const hasData = pnl.revenue.some(v => v > 0) || pnl.expenses.some(v => v > 0);
+  const canvas = document.getElementById('pnlChart');
+  if (!hasData) {
+    canvas.parentElement.innerHTML = '<p class="text-body-secondary mb-0 py-4 text-center">No approved transactions for this year yet.</p>';
+  } else {
+    new Chart(canvas, {
+      type: 'bar',
+      data: { labels: pnl.labels, datasets: [
+        { label: 'Revenue', data: pnl.revenue, backgroundColor: '#198754' },
+        { label: 'Expenses', data: pnl.expenses, backgroundColor: '#dc3545' }
+      ]},
+      options: { responsive: true, aspectRatio: 3, scales: { y: { beginAtZero: true } } }
+    });
+  }
+</script>
+{% endblock %}
