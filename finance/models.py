@@ -1,8 +1,10 @@
+import calendar
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction as db_transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -281,3 +283,88 @@ class Budget(models.Model):
 
     def __str__(self):
         return f"{self.department} budget {self.period_start} to {self.period_end}"
+
+        
+
+class RecurringExpense(models.Model):
+    """An expense that repeats every month, such as rent, salaries or utilities."""
+
+    name = models.CharField(max_length=120)
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="recurring_expenses")
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="recurring_expenses")
+    amount = models.DecimalField(validators=POSITIVE, **MONEY)
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True)
+    supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL, related_name="recurring_expenses")
+    day_of_month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(31)],
+        help_text="If a month is shorter (for example day 31 in February), the last day of that month is used.",
+    )
+    start_date = models.DateField(help_text="The first expense is created on the first due date on or after this date.")
+    end_date = models.DateField(null=True, blank=True, help_text="Optional. No expenses are created after this date.")
+    is_active = models.BooleanField(default=True)
+    last_generated = models.DateField(null=True, blank=True, editable=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def clean(self):
+        errors = {}
+        if self.category_id and self.category.kind != Category.Kind.EXPENSE:
+            errors["category"] = "Pick an expense category."
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            errors["end_date"] = "End date cannot be before the start date."
+        if errors:
+            raise ValidationError(errors)
+
+    # ----- schedule -----
+
+    def _due_in_month(self, year, month):
+        last_day = calendar.monthrange(year, month)[1]
+        return date(year, month, min(self.day_of_month, last_day))
+
+    def _first_open_day(self):
+        """The earliest day an expense could still be created for."""
+        return self.start_date if self.last_generated is None else self.last_generated + timedelta(days=1)
+
+    def due_dates(self, today=None):
+        """Dates up to today that have not been turned into an expense yet."""
+        today = today or timezone.localdate()
+        lower = self._first_open_day()
+        upper = min(today, self.end_date) if self.end_date else today
+        dates = []
+        year, month = lower.year, lower.month
+        while date(year, month, 1) <= upper:
+            due = self._due_in_month(year, month)
+            if lower <= due <= upper:
+                dates.append(due)
+            year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        return dates
+
+    def next_due(self):
+        """The next date an expense is due (it may already be in the past), or None if the schedule is finished."""
+        lower = self._first_open_day()
+        year, month = lower.year, lower.month
+        for _ in range(14):
+            due = self._due_in_month(year, month)
+            if due >= lower:
+                return None if self.end_date and due > self.end_date else due
+            year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        return None
+
+    def pause(self):
+        self.is_active = False
+        self.save(update_fields=["is_active"])
+
+    def resume(self, today=None):
+        """Switch back on. Months missed while paused are skipped, not created afterwards."""
+        today = today or timezone.localdate()
+        missed = self.due_dates(today - timedelta(days=1))
+        if missed:
+            self.last_generated = max(missed)
+        self.is_active = True
+        self.save(update_fields=["is_active", "last_generated"])
+
+    def __str__(self):
+        return self.name

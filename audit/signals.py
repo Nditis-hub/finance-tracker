@@ -3,13 +3,13 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from core.models import Category, Department
-from finance.models import Booking, Budget, Supplier, Transaction
+from finance.models import Booking, Budget, RecurringExpense, Supplier, Transaction
 
 from .middleware import get_current_user
 from .models import AuditLog
 
 User = get_user_model()
-TRACKED = (Transaction, Budget, Booking, Supplier, Category, Department, User)
+TRACKED = (Transaction, Budget, Booking, Supplier, Category, Department, User, RecurringExpense)
 
 
 def _record(instance, action):

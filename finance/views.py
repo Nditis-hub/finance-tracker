@@ -15,8 +15,10 @@ from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 from accounts.permissions import FinanceManagerRequiredMixin
 from core.models import Category, Department
 
-from .forms import BookingEditForm, BookingForm, BudgetForm, SupplierForm, TransactionFilterForm, TransactionForm
-from .models import Booking, Budget, Supplier, Transaction
+from .forms import (BookingEditForm, BookingForm, BudgetForm, RecurringExpenseForm, SupplierForm,
+                    TransactionFilterForm, TransactionForm)
+from .models import Booking, Budget, RecurringExpense, Supplier, Transaction
+from .recurring import generate_due_expenses, pending_count
 
 
 class TransactionListView(LoginRequiredMixin, ListView):
@@ -384,3 +386,83 @@ class SupplierDeleteView(FinanceManagerRequiredMixin, View):
             supplier.delete()
             messages.success(request, f'Supplier "{supplier.name}" deleted.')
         return redirect("supplier_list")
+
+
+class RecurringListView(FinanceManagerRequiredMixin, ListView):
+    model = RecurringExpense
+    template_name = "finance/recurring_list.html"
+    context_object_name = "items"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        for item in ctx["items"]:
+            item.next_due_date = item.next_due()
+            item.due_now = item.is_active and bool(item.due_dates(today))
+        ctx["pending_count"] = pending_count(today)
+        return ctx
+
+
+class RecurringCreateView(FinanceManagerRequiredMixin, CreateView):
+    model = RecurringExpense
+    form_class = RecurringExpenseForm
+    template_name = "finance/recurring_form.html"
+    success_url = reverse_lazy("recurring_list")
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, "Recurring expense added.")
+        return super().form_valid(form)
+
+
+class RecurringUpdateView(FinanceManagerRequiredMixin, UpdateView):
+    model = RecurringExpense
+    form_class = RecurringExpenseForm
+    template_name = "finance/recurring_form.html"
+    success_url = reverse_lazy("recurring_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Recurring expense updated.")
+        return super().form_valid(form)
+
+
+class RecurringToggleView(FinanceManagerRequiredMixin, View):
+    """POST-only. Pause or resume a recurring expense. Months missed while paused are skipped."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        item = get_object_or_404(RecurringExpense, pk=pk)
+        if item.is_active:
+            item.pause()
+            messages.success(request, f'"{item.name}" paused.')
+        else:
+            item.resume()
+            messages.success(request, f'"{item.name}" resumed. Months missed while it was paused are skipped.')
+        return redirect("recurring_list")
+
+
+class RecurringDeleteView(FinanceManagerRequiredMixin, View):
+    """POST-only. Expenses already created from it stay in the books."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        item = get_object_or_404(RecurringExpense, pk=pk)
+        item.delete()
+        messages.success(request, f'"{item.name}" deleted. Expenses already created from it are kept.')
+        return redirect("recurring_list")
+
+
+class RecurringGenerateView(FinanceManagerRequiredMixin, View):
+    """POST-only. Create pending expenses for everything that has come due."""
+
+    http_method_names = ["post"]
+
+    def post(self, request):
+        created = generate_due_expenses(user=request.user)
+        if created:
+            messages.success(request, f"Created {created} pending expense{'s' if created != 1 else ''}. They now wait for approval.")
+        else:
+            messages.info(request, "Nothing is due right now.")
+        return redirect("recurring_list")

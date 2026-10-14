@@ -2,7 +2,7 @@ from django import forms
 
 from core.models import Category, Department
 
-from .models import REFERENCE_METHODS, Booking, Budget, PaymentMethod, Supplier, Transaction
+from .models import REFERENCE_METHODS, Booking, Budget, PaymentMethod, RecurringExpense, Supplier, Transaction
 
 
 REFERENCE_HELP = "Receipt, mobile money, cheque or transfer number. Required unless paid in cash."
@@ -92,3 +92,22 @@ class BookingEditForm(forms.ModelForm):
             "check_out": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
         help_texts = {"payment_method": "Optional. If the booking is paid, this is copied to the income record."}
+
+        
+
+class RecurringExpenseForm(forms.ModelForm):
+    class Meta:
+        model = RecurringExpense
+        fields = ["name", "category", "department", "amount", "payment_method", "supplier",
+                  "day_of_month", "start_date", "end_date", "is_active"]
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        }
+        labels = {"is_active": "Active (create expenses automatically)"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["category"].queryset = Category.objects.filter(kind=Category.Kind.EXPENSE)
+        self.fields["supplier"].required = False
+        self.fields["supplier"].empty_label = "None"

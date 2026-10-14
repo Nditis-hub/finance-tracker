@@ -38,6 +38,7 @@
 
       <div class="nav-section">Manage</div>
       <a class="side-link {% if request.resolver_match.url_name == 'supplier_list' %}active{% endif %}" href="{% url 'supplier_list' %}"><i class="bi bi-truck"></i>Suppliers</a>
+      <a class="side-link {% if request.resolver_match.url_name == 'recurring_list' or request.resolver_match.url_name == 'recurring_create' or request.resolver_match.url_name == 'recurring_edit' %}active{% endif %}" href="{% url 'recurring_list' %}"><i class="bi bi-arrow-repeat"></i>Recurring</a>
       <a class="side-link {% if request.resolver_match.url_name == 'category_list' %}active{% endif %}" href="{% url 'category_list' %}"><i class="bi bi-tags"></i>Categories</a>
             <a class="side-link {% if request.resolver_match.url_name == 'department_list' or request.resolver_match.url_name == 'department_edit' %}active{% endif %}" href="{% url 'department_list' %}"><i class="bi bi-diagram-3"></i>Departments</a>
       {% endif %}

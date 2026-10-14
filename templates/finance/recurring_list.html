@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load money %}
+{% block title %}Recurring expenses{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Recurring expenses</h1>
+    <div class="text-body-secondary small">Rent, salaries, utilities and anything else that repeats monthly. Generated expenses start as <strong>Pending</strong> and still need approval.</div>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="{% url 'recurring_generate' %}"
+          {% if pending_count %}onsubmit="return confirm('Create {{ pending_count }} pending expense{{ pending_count|pluralize }} now?');"{% endif %}>{% csrf_token %}
+      <button class="btn btn-outline-dark" {% if not pending_count %}disabled title="Nothing is due right now"{% endif %}>
+        <i class="bi bi-lightning-charge me-1"></i>Generate due expenses{% if pending_count %} ({{ pending_count }}){% endif %}
+      </button>
+    </form>
+    <a href="{% url 'recurring_create' %}" class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i>Add recurring expense</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Name</th><th>Department</th><th class="text-end">Amount</th><th>Repeats</th><th>Next due</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for r in items %}
+        <tr {% if not r.is_active %}class="text-body-secondary"{% endif %}>
+          <td>
+            <div class="fw-semibold">{{ r.name }}</div>
+            <div class="small text-body-secondary">{{ r.category.name }}{% if r.supplier %} &middot; {{ r.supplier }}{% endif %}</div>
+          </td>
+          <td>{{ r.department }}</td>
+          <td class="text-end text-nowrap">{{ r.amount|money }}</td>
+          <td class="text-nowrap">
+            Day {{ r.day_of_month }} of each month
+            <div class="small text-body-secondary">From {{ r.start_date|date:"j M Y" }}{% if r.end_date %} to {{ r.end_date|date:"j M Y" }}{% endif %}</div>
+          </td>
+          <td class="text-nowrap">
+            {% if not r.is_active %}<span class="text-body-secondary">—</span>
+            {% elif r.next_due_date is None %}<span class="text-body-secondary">Finished</span>
+            {% elif r.due_now %}<span class="badge text-bg-warning">Due now</span> <span class="small">{{ r.next_due_date|date:"j M Y" }}</span>
+            {% else %}{{ r.next_due_date|date:"j M Y" }}{% endif %}
+          </td>
+          <td>{% if r.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Paused</span>{% endif %}</td>
+          <td class="text-nowrap text-end">
+            <a href="{% url 'recurring_edit' r.pk %}" class="btn btn-sm btn-outline-secondary" title="Edit" aria-label="Edit recurring expense"><i class="bi bi-pencil"></i></a>
+            <form method="post" action="{% url 'recurring_toggle' r.pk %}" class="d-inline">{% csrf_token %}
+              <button class="btn btn-sm btn-outline-secondary">{% if r.is_active %}Pause{% else %}Resume{% endif %}</button>
+            </form>
+            <form method="post" action="{% url 'recurring_delete' r.pk %}" class="d-inline" onsubmit="return confirm('Delete this recurring expense? Expenses already created from it are kept.');">{% csrf_token %}
+              <button class="btn btn-sm btn-outline-secondary" title="Delete" aria-label="Delete recurring expense"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="text-center text-body-secondary py-4">Nothing set up yet. <a href="{% url 'recurring_create' %}">Add the first one.</a></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-transparent small text-body-secondary px-4">Expenses are created when you press <strong>Generate due expenses</strong>. If you pause an item, the months it was paused are skipped when you resume it.</div>
+</div>
+{% endblock %}
