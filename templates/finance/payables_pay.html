@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags money %}
+{% block title %}Record payment{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-6">
+  <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'invoice_list' %}">Payables</a></li><li class="breadcrumb-item"><a href="{% url 'invoice_detail' invoice.pk %}">{{ invoice.invoice_number }}</a></li><li class="breadcrumb-item active">Payment</li></ol></nav>
+  <h1 class="h3 mb-1">Record payment</h1>
+  <p class="text-body-secondary">{{ invoice.supplier }} &middot; invoice {{ invoice.invoice_number }} &middot; balance {{ invoice.balance|money }}</p>
+  <div class="alert alert-info">This also adds an expense for <strong>{{ invoice.department }}</strong> under <strong>{{ invoice.category.name }}</strong>, so your budgets and reports stay in step.</div>
+  <div class="card"><div class="card-body p-4">
+    <form method="post" novalidate>{% csrf_token %}
+      {{ form|crispy }}
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-success">Record payment</button>
+        <a href="{% url 'invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}

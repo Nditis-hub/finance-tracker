@@ -9,6 +9,7 @@ urlpatterns = [
     path("bookings/", include("finance.booking_urls")),
     path("suppliers/", include("finance.supplier_urls")),
     path("recurring/", include("finance.recurring_urls")),
+    path("payables/", include("finance.payables_urls")),
     path("audit-log/", include("audit.urls")),
     path("", include("core.urls")),
 ]

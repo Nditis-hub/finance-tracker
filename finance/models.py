@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction as db_transaction
 from django.db.models import Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from core.models import Category, Department
@@ -143,6 +144,7 @@ class Transaction(models.Model):
     payment_reference = models.CharField(max_length=60, blank=True)
     supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL, related_name="transactions")
     booking = models.ForeignKey(Booking, null=True, blank=True, on_delete=models.SET_NULL, related_name="transactions")
+    invoice = models.ForeignKey("SupplierInvoice", null=True, blank=True, on_delete=models.SET_NULL, related_name="payments")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     rejection_reason = models.CharField(max_length=255, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="transactions_created")
@@ -368,3 +370,89 @@ class RecurringExpense(models.Model):
 
     def __str__(self):
         return self.name
+
+class SupplierInvoiceQuerySet(models.QuerySet):
+    def with_balance(self):
+        """Add paid_total and balance_due to each invoice. Rejected and voided payments do not count."""
+        if "paid_total" in self.query.annotations:
+            return self
+        counted = ~Q(payments__status__in=[Transaction.Status.REJECTED, Transaction.Status.VOIDED])
+        money = models.DecimalField(max_digits=14, decimal_places=2)
+        return self.annotate(
+            paid_total=Coalesce(Sum("payments__amount", filter=counted), Decimal("0.00"), output_field=money),
+        ).annotate(balance_due=models.F("amount") - models.F("paid_total")).order_by("due_date", "id")
+
+    def outstanding(self):
+        return self.with_balance().filter(balance_due__gt=0)
+
+    def overdue(self, today=None):
+        return self.outstanding().filter(due_date__lt=today or timezone.localdate())
+
+
+class SupplierInvoice(models.Model):
+    """A bill from a supplier. Each payment is an ordinary expense transaction linked back to it,
+    so the books and the payables always agree."""
+
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name="invoices")
+    invoice_number = models.CharField(max_length=60)
+    invoice_date = models.DateField()
+    due_date = models.DateField()
+    amount = models.DecimalField(validators=POSITIVE, **MONEY)
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="invoices")
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="invoices")
+    description = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = SupplierInvoiceQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["due_date", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["supplier", "invoice_number"], name="unique_invoice_number_per_supplier"),
+            models.CheckConstraint(condition=Q(due_date__gte=models.F("invoice_date")), name="invoice_due_on_or_after_issue"),
+        ]
+
+    def clean(self):
+        errors = {}
+        if self.category_id and self.category.kind != Category.Kind.EXPENSE:
+            errors["category"] = "Pick an expense category."
+        if self.invoice_date and self.due_date and self.due_date < self.invoice_date:
+            errors["due_date"] = "The due date cannot be before the invoice date."
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def amount_paid(self):
+        if hasattr(self, "paid_total"):
+            return self.paid_total
+        total = self.payments.exclude(
+            status__in=[Transaction.Status.REJECTED, Transaction.Status.VOIDED]
+        ).aggregate(total=Sum("amount"))["total"]
+        return total or Decimal("0.00")
+
+    @property
+    def balance(self):
+        return self.amount - self.amount_paid
+
+    @property
+    def payment_status(self):
+        paid = self.amount_paid
+        if paid >= self.amount:
+            return "paid"
+        return "part_paid" if paid > 0 else "unpaid"
+
+    @property
+    def is_overdue(self):
+        return self.balance > 0 and self.due_date < timezone.localdate()
+
+    @property
+    def days_overdue(self):
+        return (timezone.localdate() - self.due_date).days if self.is_overdue else 0
+
+    @property
+    def days_until_due(self):
+        return (self.due_date - timezone.localdate()).days
+
+    def __str__(self):
+        return f"{self.supplier} invoice {self.invoice_number}"

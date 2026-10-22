@@ -35,12 +35,13 @@
       <a class="side-link {% if request.resolver_match.url_name == 'booking_list' %}active{% endif %}" href="{% url 'booking_list' %}"><i class="bi bi-calendar-check"></i>Bookings</a>
       {% if user.can_manage_finance %}
       <a class="side-link {% if request.resolver_match.url_name == 'budget_list' %}active{% endif %}" href="{% url 'budget_list' %}"><i class="bi bi-piggy-bank"></i>Budgets</a>
+      <a class="side-link {% if 'invoice' in request.resolver_match.url_name or request.resolver_match.url_name == 'supplier_statement' %}active{% endif %}" href="{% url 'invoice_list' %}"><i class="bi bi-receipt-cutoff"></i>Payables</a>
 
       <div class="nav-section">Manage</div>
       <a class="side-link {% if request.resolver_match.url_name == 'supplier_list' %}active{% endif %}" href="{% url 'supplier_list' %}"><i class="bi bi-truck"></i>Suppliers</a>
       <a class="side-link {% if request.resolver_match.url_name == 'recurring_list' or request.resolver_match.url_name == 'recurring_create' or request.resolver_match.url_name == 'recurring_edit' %}active{% endif %}" href="{% url 'recurring_list' %}"><i class="bi bi-arrow-repeat"></i>Recurring</a>
       <a class="side-link {% if request.resolver_match.url_name == 'category_list' %}active{% endif %}" href="{% url 'category_list' %}"><i class="bi bi-tags"></i>Categories</a>
-            <a class="side-link {% if request.resolver_match.url_name == 'department_list' or request.resolver_match.url_name == 'department_edit' %}active{% endif %}" href="{% url 'department_list' %}"><i class="bi bi-diagram-3"></i>Departments</a>
+      <a class="side-link {% if request.resolver_match.url_name == 'department_list' or request.resolver_match.url_name == 'department_edit' %}active{% endif %}" href="{% url 'department_list' %}"><i class="bi bi-diagram-3"></i>Departments</a>
       {% endif %}
       {% if user.is_hotel_admin %}
       <a class="side-link {% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'user_edit' %}active{% endif %}" href="{% url 'user_list' %}"><i class="bi bi-people"></i>Users</a>

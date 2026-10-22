@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load money %}
+{% block title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'invoice_list' %}">Payables</a></li><li class="breadcrumb-item active">{{ invoice.invoice_number }}</li></ol></nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ invoice.supplier }} &middot; {{ invoice.invoice_number }}</h1>
+    <div>
+      {% if invoice.balance <= 0 %}<span class="badge text-bg-success">Paid</span>
+      {% elif invoice.is_overdue %}<span class="badge text-bg-danger">Overdue {{ invoice.days_overdue }} day{{ invoice.days_overdue|pluralize }}</span>
+      {% elif invoice.amount_paid > 0 %}<span class="badge text-bg-info">Part paid</span>
+      {% else %}<span class="badge text-bg-secondary">Unpaid</span>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if invoice.balance > 0 %}<a href="{% url 'invoice_pay' invoice.pk %}" class="btn btn-success"><i class="bi bi-cash-coin me-1"></i>Record payment</a>{% endif %}
+    <a href="{% url 'invoice_edit' invoice.pk %}" class="btn btn-outline-dark">Edit</a>
+    <form method="post" action="{% url 'invoice_delete' invoice.pk %}" class="d-inline" onsubmit="return confirm('Delete this invoice? This cannot be undone.');">{% csrf_token %}
+      <button class="btn btn-outline-secondary" {% if payments %}disabled title="Invoices with payments cannot be deleted"{% endif %}><i class="bi bi-trash"></i></button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-4 text-body-secondary fw-normal">Supplier</dt><dd class="col-sm-8"><a href="{% url 'supplier_statement' invoice.supplier_id %}">{{ invoice.supplier }}</a></dd>
+        <dt class="col-sm-4 text-body-secondary fw-normal">Invoice date</dt><dd class="col-sm-8">{{ invoice.invoice_date|date:"j M Y" }}</dd>
+        <dt class="col-sm-4 text-body-secondary fw-normal">Due date</dt><dd class="col-sm-8">{{ invoice.due_date|date:"j M Y" }}</dd>
+        <dt class="col-sm-4 text-body-secondary fw-normal">Department</dt><dd class="col-sm-8">{{ invoice.department }}</dd>
+        <dt class="col-sm-4 text-body-secondary fw-normal">Expense category</dt><dd class="col-sm-8">{{ invoice.category.name }}</dd>
+        <dt class="col-sm-4 text-body-secondary fw-normal">Description</dt><dd class="col-sm-8 mb-0">{{ invoice.description|default:"—" }}</dd>
+      </dl>
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="d-flex justify-content-between"><span class="text-body-secondary">Invoice total</span><span>{{ invoice.amount|money }}</span></div>
+      <div class="d-flex justify-content-between"><span class="text-body-secondary">Paid</span><span>{{ invoice.amount_paid|money }}</span></div>
+      <hr>
+      <div class="d-flex justify-content-between fw-bold fs-5"><span>Balance</span><span>{{ invoice.balance|money }}</span></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Payments</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Date</th><th class="text-end">Amount</th><th>Method</th><th>Recorded by</th><th>Expense status</th></tr>
+      </thead>
+      <tbody>
+      {% for p in payments %}
+        <tr {% if p.status == 'rejected' or p.status == 'voided' %}class="text-body-secondary"{% endif %}>
+          <td class="text-nowrap">{{ p.date|date:"j M Y" }}</td>
+          <td class="text-end text-nowrap {% if p.status == 'rejected' or p.status == 'voided' %}text-decoration-line-through{% endif %}">{{ p.amount|money }}</td>
+          <td>{{ p.get_payment_method_display }}{% if p.payment_reference %}<div class="small text-body-secondary">{{ p.payment_reference }}</div>{% endif %}</td>
+          <td>{{ p.created_by|default:"—" }}</td>
+          <td>
+            {% if p.status == 'approved' %}<span class="badge text-bg-success">Approved</span>
+            {% elif p.status == 'pending' %}<span class="badge text-bg-warning">Waiting for approval</span>
+            {% elif p.status == 'rejected' %}<span class="badge text-bg-secondary">Rejected (not counted)</span>
+            {% else %}<span class="badge text-bg-dark">Voided (not counted)</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-body-secondary py-4">No payments yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

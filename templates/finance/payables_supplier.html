@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load money %}
+{% block title %}{{ supplier.name }} statement{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'invoice_list' %}">Payables</a></li><li class="breadcrumb-item active">{{ supplier.name }}</li></ol></nav>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ supplier.name }}</h1>
+    <div class="text-body-secondary small">{{ supplier.get_category_display }}{% if supplier.contact %} &middot; {{ supplier.contact }}{% endif %}</div>
+  </div>
+  <a href="{% url 'invoice_create' %}?supplier={{ supplier.pk }}" class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i>Add invoice</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Total billed</div><div class="kpi-value">{{ billed_total|money }}</div></div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Total paid</div><div class="kpi-value text-success">{{ paid_total|money }}</div></div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="text-body-secondary small">Still owed</div><div class="kpi-value {% if owed_total %}text-danger{% endif %}">{{ owed_total|money }}</div></div></div></div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Invoice</th><th>Invoice date</th><th>Due</th><th class="text-end">Amount</th><th class="text-end">Paid</th><th class="text-end">Balance</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for i in invoices %}
+        <tr>
+          <td class="fw-semibold">{{ i.invoice_number }}</td>
+          <td class="text-nowrap">{{ i.invoice_date|date:"j M Y" }}</td>
+          <td class="text-nowrap">{{ i.due_date|date:"j M Y" }}</td>
+          <td class="text-end text-nowrap">{{ i.amount|money }}</td>
+          <td class="text-end text-nowrap">{{ i.paid_total|money }}</td>
+          <td class="text-end text-nowrap">{% if i.balance_due > 0 %}{{ i.balance_due|money }}{% else %}<span class="badge text-bg-success">Paid</span>{% endif %}</td>
+          <td class="text-end"><a href="{% url 'invoice_detail' i.pk %}" class="btn btn-sm btn-outline-secondary">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="text-center text-body-secondary py-4">No invoices from this supplier yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

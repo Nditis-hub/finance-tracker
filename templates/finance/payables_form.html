@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if object %}Edit{% else %}Add{% endif %} invoice{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-6">
+  <h1 class="h3 mb-3">{% if object %}Edit invoice{% else %}Add supplier invoice{% endif %}</h1>
+  <div class="card"><div class="card-body p-4">
+    <form method="post" novalidate>{% csrf_token %}
+      {{ form|crispy }}
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-dark">{% if object %}Save changes{% else %}Save invoice{% endif %}</button>
+        <a href="{% if object %}{% url 'invoice_detail' object.pk %}{% else %}{% url 'invoice_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div></div>
+</div></div>
+{% endblock %}

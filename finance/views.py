@@ -371,7 +371,6 @@ class SupplierUpdateView(FinanceManagerRequiredMixin, UpdateView):
         messages.success(self.request, "Supplier updated.")
         return super().form_valid(form)
 
-
 class SupplierDeleteView(FinanceManagerRequiredMixin, View):
     """POST-only. A supplier that appears on transactions cannot be deleted, so history stays intact."""
 
@@ -380,8 +379,11 @@ class SupplierDeleteView(FinanceManagerRequiredMixin, View):
     def post(self, request, pk):
         supplier = get_object_or_404(Supplier, pk=pk)
         used = supplier.transactions.count()
+        invoices = supplier.invoices.count()
         if used:
             messages.error(request, f'"{supplier.name}" is on {used} transaction{"s" if used != 1 else ""}, so it cannot be deleted.')
+        elif invoices:
+            messages.error(request, f'"{supplier.name}" has {invoices} invoice{"s" if invoices != 1 else ""}, so it cannot be deleted.')
         else:
             supplier.delete()
             messages.success(request, f'Supplier "{supplier.name}" deleted.')
